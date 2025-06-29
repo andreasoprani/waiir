@@ -8,7 +8,7 @@ pub struct Lexer {
 }
 
 impl Lexer {
-    fn init(input: &str) -> Self {
+    pub fn init(input: &str) -> Self {
         let mut lexer = Self {
             input: String::from(input),
             position: 0,
@@ -19,7 +19,7 @@ impl Lexer {
         lexer
     }
 
-    fn next_token(&mut self) -> Token {
+    pub fn next_token(&mut self) -> Token {
         self.skip_whitespace();
 
         let token = match self.ch {
