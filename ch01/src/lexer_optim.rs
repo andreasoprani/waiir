@@ -1,21 +1,20 @@
+use std::iter::Peekable;
+use std::str::Chars;
+
 use crate::token::Token;
 
-pub struct Lexer {
-    input: String,
-    position: usize,
-    read_position: usize,
-    ch: char,
+pub struct Lexer<'a> {
+    chars_iter: Peekable<Chars<'a>>,
+    ch: Option<char>,
 }
 
-impl Lexer {
-    pub fn init(input: &str) -> Self {
+impl<'a> Lexer<'a> {
+    pub fn init(input: &'a str) -> Self {
         let mut lexer = Self {
-            input: String::from(input),
-            position: 0,
-            read_position: 0,
-            ch: char::MIN,
+            chars_iter: input.chars().peekable(),
+            ch: None,
         };
-        lexer.read_char();
+        lexer.advance_char();
         lexer
     }
 
@@ -23,41 +22,41 @@ impl Lexer {
         self.skip_whitespace();
 
         let token = match self.ch {
-            '=' => {
-                if self.peek_char() == '=' {
-                    self.read_char();
+            Some('=') => {
+                if self.peek_char() == Some('=') {
+                    self.advance_char();
                     Token::Eq
                 } else {
                     Token::Assign
                 }
             }
-            '!' => {
-                if self.peek_char() == '=' {
-                    self.read_char();
+            Some('!') => {
+                if self.peek_char() == Some('=') {
+                    self.advance_char();
                     Token::NotEq
                 } else {
                     Token::Bang
                 }
             }
-            '+' => Token::Plus,
-            '-' => Token::Minus,
-            '*' => Token::Asterisk,
-            '/' => Token::Slash,
-            '<' => Token::Lt,
-            '>' => Token::Gt,
-            ',' => Token::Comma,
-            ';' => Token::Semicolon,
-            '(' => Token::LParen,
-            ')' => Token::RParen,
-            '{' => Token::LBrace,
-            '}' => Token::RBrace,
-            char::MIN => Token::Eof,
-            'a'..='z' => self.parse_identifier(),
-            '0'..='9' => self.parse_number(),
+            Some('+') => Token::Plus,
+            Some('-') => Token::Minus,
+            Some('*') => Token::Asterisk,
+            Some('/') => Token::Slash,
+            Some('<') => Token::Lt,
+            Some('>') => Token::Gt,
+            Some(',') => Token::Comma,
+            Some(';') => Token::Semicolon,
+            Some('(') => Token::LParen,
+            Some(')') => Token::RParen,
+            Some('{') => Token::LBrace,
+            Some('}') => Token::RBrace,
+            Some('a'..='z') => self.parse_identifier(),
+            Some('0'..='9') => self.parse_number(),
+            None => Token::Eof,
             _ => Token::Illegal,
         };
 
-        self.read_char();
+        self.advance_char();
 
         token
     }
@@ -73,36 +72,31 @@ impl Lexer {
         output
     }
 
-    fn read_char(&mut self) {
-        if self.read_position >= self.input.len() {
-            self.ch = char::MIN;
-        } else {
-            self.ch = self.input.chars().nth(self.read_position).unwrap();
-        }
-        self.position = self.read_position;
-        self.read_position += 1;
+    fn advance_char(&mut self) {
+        self.ch = self.chars_iter.next()
     }
 
-    fn peek_char(&mut self) -> char {
-        if self.read_position >= self.input.len() {
-            char::MIN
-        } else {
-            self.input.chars().nth(self.read_position).unwrap()
-        }
+    fn peek_char(&mut self) -> Option<char> {
+        self.chars_iter.peek().copied()
     }
 
     fn skip_whitespace(&mut self) {
-        while self.ch == ' ' || self.ch == '\t' || self.ch == '\n' || self.ch == '\r' {
-            self.read_char();
+        while self.ch == Some(' ')
+            || self.ch == Some('\t')
+            || self.ch == Some('\n')
+            || self.ch == Some('\r')
+        {
+            self.advance_char();
         }
     }
 
     fn parse_identifier(&mut self) -> Token {
         let mut output = String::new();
-        loop {
-            output.push(self.ch);
-            if self.peek_char().is_alphabetic() {
-                self.read_char();
+        while let Some(ch) = self.ch {
+            output.push(ch);
+            let peek = self.peek_char();
+            if peek.is_some() && peek.unwrap().is_alphabetic() {
+                self.advance_char();
             } else {
                 break;
             }
@@ -121,10 +115,11 @@ impl Lexer {
 
     fn parse_number(&mut self) -> Token {
         let mut output = 0;
-        loop {
-            output = output * 10 + self.ch.to_digit(10).unwrap();
-            if self.peek_char().is_numeric() {
-                self.read_char();
+        while let Some(ch) = self.ch {
+            output = output * 10 + ch.to_digit(10).unwrap();
+            let peek = self.peek_char();
+            if peek.is_some() && peek.unwrap().is_numeric() {
+                self.advance_char();
             } else {
                 break;
             }

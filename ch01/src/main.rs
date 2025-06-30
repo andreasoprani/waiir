@@ -1,6 +1,7 @@
 use std::io::stdin;
 
 mod lexer;
+mod lexer_optim;
 mod token;
 
 fn main() {
@@ -9,7 +10,7 @@ fn main() {
     loop {
         let mut buf = String::new();
         stdin().read_line(&mut buf).unwrap();
-        let mut line_lexer = lexer::Lexer::init(buf.as_str());
+        let mut line_lexer = lexer_optim::Lexer::init(buf.as_str());
         loop {
             let tok = line_lexer.next_token();
             println!("{:?}", tok);
