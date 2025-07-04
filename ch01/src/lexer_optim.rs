@@ -254,4 +254,32 @@ mod tests {
             ]
         )
     }
+
+    #[test]
+    fn perf_test() {
+        let input = "let five = 5; \n\
+            let ten = 10; \n\
+            \n\
+            let add = fn(x, y) { \n\
+              x + y; \n\
+            }; \n\
+            \n\
+            let result = add(five, ten); \n\
+            !-/*5; \n\
+            5 < 10 > 5; \n\
+            \n\
+            if (5 < 10) { \n\
+            	return true; \n\
+            } else { \n\
+            	return false; \n\
+            } \n\
+            \n\
+            10 == 10; \n\
+            10 != 9;"
+            .repeat(100);
+        let mut lexer = Lexer::init(input.as_str());
+
+        let tokens = lexer.get_all_tokens();
+        assert_eq!(tokens.len(), 73 * 100 + 1);
+    }
 }
