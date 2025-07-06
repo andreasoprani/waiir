@@ -1,7 +1,7 @@
 use std::io::stdin;
 
-mod lexer;
 mod lexer_optim;
+mod lexer_slow;
 mod token;
 
 fn main() {

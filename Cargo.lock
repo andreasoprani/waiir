@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "ch01"
+name = "waiir"
 version = "0.1.0"
