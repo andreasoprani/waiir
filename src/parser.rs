@@ -31,42 +31,57 @@ impl<'a> Parser<'a> {
     fn parse_let_statement(&mut self) -> Statement {
         self.advance_token();
 
-        let name;
-        let value;
-
-        if let Token::Ident(_name) = &self.curr_token {
-            name = _name.clone();
+        let name = if let Token::Ident(_name) = &self.curr_token {
+            _name.clone()
         } else {
-            panic!("Invalid Let statement, name not found");
-        }
+            panic!("Invalid statement");
+        };
         self.advance_token();
 
         if self.curr_token != Token::Assign {
-            panic!("Invalid Let statement");
+            panic!("Invalid statement");
         }
         self.advance_token();
+
+        let value = self.parse_expression();
+
+        if self.curr_token != Token::Semicolon {
+            panic!("Invalid statement");
+        }
+
+        Statement::Let { name, value }
+    }
+
+    fn parse_return_statement(&mut self) -> Statement {
+        self.advance_token();
+
+        let value = self.parse_expression();
+
+        if self.curr_token != Token::Semicolon {
+            panic!("Invalid statement");
+        }
+
+        Statement::Return { value }
+    }
+
+    fn parse_expression(&mut self) -> Expression {
+        let value;
 
         // TODO: move to parse expression
         if let Token::Int(_value) = self.curr_token {
             value = _value;
         } else {
-            panic!("Invalid Let statement");
+            panic!("Invalid statement");
         }
         self.advance_token();
 
-        if self.curr_token != Token::Semicolon {
-            panic!("Invalid Let statement");
-        }
-
-        Statement::Let {
-            name,
-            value: Expression::Int(value),
-        }
+        Expression::Int(value)
     }
 
     fn parse_statement(&mut self) -> Statement {
         match self.curr_token {
             Token::Let => self.parse_let_statement(),
+            Token::Return => self.parse_return_statement(),
             _ => todo!("Not implemented"),
         }
     }
@@ -120,6 +135,33 @@ mod tests {
                     Statement::Let {
                         name: String::from("foobar"),
                         value: Expression::Int(838383)
+                    },
+                ]
+            }
+        );
+    }
+
+    #[test]
+    fn return_stmts() {
+        let mut parser = Parser::init(
+            "return 5; \n\
+            return 10; \n\
+            return 993322;",
+        );
+        let program = parser.parse_program();
+
+        assert_eq!(
+            program,
+            Program {
+                statements: vec![
+                    Statement::Return {
+                        value: Expression::Int(5)
+                    },
+                    Statement::Return {
+                        value: Expression::Int(10)
+                    },
+                    Statement::Return {
+                        value: Expression::Int(993322)
                     },
                 ]
             }

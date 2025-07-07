@@ -2,13 +2,13 @@
 pub enum Expression {
     Bool(bool),
     Int(i64),
-    String(String),
-    Identifiter(String),
+    Ident(String),
 }
 
 #[derive(PartialEq, Debug)]
 pub enum Statement {
     Let { name: String, value: Expression },
+    Return { value: Expression },
     Expr(Expression),
 }
 
