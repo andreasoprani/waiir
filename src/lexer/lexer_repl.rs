@@ -1,8 +1,7 @@
 use std::io::stdin;
 
-mod lexer_optim;
-mod lexer_slow;
-mod token;
+use lexer::Lexer;
+use token::Token;
 
 fn main() {
     println!("Hello, this is the Monkey programming language!");
@@ -10,11 +9,11 @@ fn main() {
     loop {
         let mut buf = String::new();
         stdin().read_line(&mut buf).unwrap();
-        let mut line_lexer = lexer_optim::Lexer::init(buf.as_str());
+        let mut line_lexer = Lexer::init(buf.as_str());
         loop {
             let tok = line_lexer.next_token();
             println!("{:?}", tok);
-            if tok == token::Token::Eof {
+            if tok == Token::Eof {
                 break;
             }
         }

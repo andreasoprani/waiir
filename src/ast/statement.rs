@@ -1,9 +1,4 @@
-#[derive(PartialEq, Debug)]
-pub enum Expression {
-    Bool(bool),
-    Int(i64),
-    Ident(String),
-}
+use crate::ast::expression::Expression;
 
 #[derive(PartialEq, Debug)]
 pub enum Statement {
