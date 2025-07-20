@@ -5,6 +5,7 @@ pub enum Statement {
     Let { name: String, value: Expression },
     Return { value: Expression },
     Expr(Expression),
+    Block(Vec<Statement>),
 }
 
 #[derive(PartialEq, Debug)]

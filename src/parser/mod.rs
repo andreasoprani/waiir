@@ -44,6 +44,7 @@ impl<'a> Parser<'a> {
         match self.curr_token {
             Token::Let => self.parse_let_statement(),
             Token::Return => self.parse_return_statement(),
+            Token::RBrace => self.parse_block_statement(),
             _ => self.parse_expression_statement(),
         }
     }
@@ -80,6 +81,17 @@ impl<'a> Parser<'a> {
         Statement::Return { value }
     }
 
+    fn parse_block_statement(&mut self) -> Statement {
+        let mut statements: Vec<Statement> = vec![];
+
+        while self.curr_token != Token::RBrace {
+            statements.push(self.parse_statement());
+            self.advance_token();
+        }
+
+        Statement::Block(statements)
+    }
+
     fn parse_expression_statement(&mut self) -> Statement {
         let stmt = Statement::Expr(self.parse_expression(Precedence::Lowest));
 
@@ -101,15 +113,6 @@ impl<'a> Parser<'a> {
         left
     }
 
-    fn parse_prefix_expression(&mut self) -> Expression {
-        let operator = PrefixOperator::from(&self.curr_token);
-        self.advance_token();
-        Expression::Prefix {
-            operator,
-            right: Box::new(self.parse_expression(Precedence::Prefix)),
-        }
-    }
-
     fn parse_prefix(&mut self) -> Expression {
         match &self.curr_token {
             Token::Bang | Token::Minus => self.parse_prefix_expression(),
@@ -117,7 +120,20 @@ impl<'a> Parser<'a> {
             Token::Int(value) => Expression::from(value.to_owned()),
             Token::True => Expression::from(true),
             Token::False => Expression::from(false),
-            _ => todo!("Prefix parsing for this token not implemented yet."),
+            Token::LParen => self.parse_grouped_expression(),
+            Token::If => self.parse_if_expression(),
+            _ => {
+                todo!("Prefix parsing for this token not implemented yet.")
+            }
+        }
+    }
+
+    fn parse_prefix_expression(&mut self) -> Expression {
+        let operator = PrefixOperator::from(&self.curr_token);
+        self.advance_token();
+        Expression::Prefix {
+            operator,
+            right: Box::new(self.parse_expression(Precedence::Prefix)),
         }
     }
 
@@ -133,6 +149,59 @@ impl<'a> Parser<'a> {
             operator,
             left: Box::new(left),
             right: Box::new(right),
+        }
+    }
+
+    fn parse_grouped_expression(&mut self) -> Expression {
+        self.advance_token();
+
+        let exp = self.parse_expression(Precedence::Lowest);
+
+        assert_token!(self.peek_token, Token::RParen);
+        self.advance_token();
+
+        exp
+    }
+
+    fn parse_if_expression(&mut self) -> Expression {
+        self.advance_token();
+
+        assert_token!(self.curr_token, Token::LParen);
+        self.advance_token();
+
+        let cond = self.parse_expression(Precedence::Lowest);
+        self.advance_token();
+
+        assert_token!(self.curr_token, Token::RParen);
+        self.advance_token();
+
+        assert_token!(self.curr_token, Token::LBrace);
+        self.advance_token();
+
+        let then_ = match self.parse_block_statement() {
+            Statement::Block(statements) => statements,
+            _ => panic!("Wrong block statement return!"),
+        };
+
+        let else_ = if self.peek_token == Token::Else {
+            self.advance_token();
+            self.advance_token();
+
+            assert_token!(self.curr_token, Token::LBrace);
+            self.advance_token();
+
+            Some(match self.parse_block_statement() {
+                Statement::Block(statements) => statements,
+                _ => panic!("Wrong block statement return!"),
+            })
+        } else {
+            None
+        };
+
+        Expression::Cond {
+            cond: Box::new(cond),
+            then_,
+            else_,
         }
     }
 
@@ -332,17 +401,21 @@ mod tests {
     fn op_precedence_expressions() {
         let mut parser = Parser::init(
             "-a * b; \n\
-            !-a;
-            a + b + c; \n\
-            a + b - c; \n\
-            a * b * c;  \n\
-            a * b / c;  \n\
-            a + b / c;  \n\
-            a + b * c + d / e - f;  \n\
-            3 + 4; -5 * 5;  \n\
-            5 > 4 == 3 < 4;  \n\
-            5 < 4 != 3 > 4;  \n\
-            3 + 4 * 5 == 3 * 1 + 4 * 5;",
+            !-a;                        \n\
+            a + b + c;                  \n\
+            a + b - c;                  \n\
+            a * b * c;                  \n\
+            a * b / c;                  \n\
+            a + b / c;                  \n\
+            a + b * c + d / e - f;      \n\
+            3 + 4; -5 * 5;              \n\
+            5 > 4 == 3 < 4;             \n\
+            5 < 4 != 3 > 4;             \n\
+            3 + 4 * 5 == 3 * 1 + 4 * 5; \n\
+            true;                       \n\
+            false;                      \n\
+            3 > 5 == false;             \n\
+            3 < 5 == true;",
         );
         let program = parser.parse_program();
 
@@ -495,6 +568,130 @@ mod tests {
                             })
                         })
                     }),
+                    Statement::Expr(Expression::from(true)),
+                    Statement::Expr(Expression::from(false)),
+                    Statement::Expr(Expression::Infix {
+                        operator: InfixOperator::Eq,
+                        left: Box::new(Expression::Infix {
+                            operator: InfixOperator::Gt,
+                            left: Box::new(Expression::from(3)),
+                            right: Box::new(Expression::from(5))
+                        }),
+                        right: Box::new(Expression::from(false)),
+                    }),
+                    Statement::Expr(Expression::Infix {
+                        operator: InfixOperator::Eq,
+                        left: Box::new(Expression::Infix {
+                            operator: InfixOperator::Lt,
+                            left: Box::new(Expression::from(3)),
+                            right: Box::new(Expression::from(5))
+                        }),
+                        right: Box::new(Expression::from(true)),
+                    }),
+                ]
+            }
+        );
+    }
+
+    #[test]
+    fn grouped_expressions_precedence() {
+        let mut parser = Parser::init(
+            "1 + (2 + 3) + 4;   \n\
+            (5 + 5) * 2;                \n\
+            2 / (5 + 5);                \n\
+            -(5 + 5);                   \n\
+            !(true == true);",
+        );
+        let program = parser.parse_program();
+
+        assert_eq!(
+            program,
+            Program {
+                statements: vec![
+                    Statement::Expr(Expression::Infix {
+                        operator: InfixOperator::Add,
+                        left: Box::new(Expression::Infix {
+                            operator: InfixOperator::Add,
+                            left: Box::new(Expression::from(1)),
+                            right: Box::new(Expression::Infix {
+                                operator: InfixOperator::Add,
+                                left: Box::new(Expression::from(2)),
+                                right: Box::new(Expression::from(3))
+                            })
+                        }),
+                        right: Box::new(Expression::from(4)),
+                    }),
+                    Statement::Expr(Expression::Infix {
+                        operator: InfixOperator::Mul,
+                        left: Box::new(Expression::Infix {
+                            operator: InfixOperator::Add,
+                            left: Box::new(Expression::from(5)),
+                            right: Box::new(Expression::from(5))
+                        }),
+                        right: Box::new(Expression::from(2)),
+                    }),
+                    Statement::Expr(Expression::Infix {
+                        operator: InfixOperator::Div,
+                        left: Box::new(Expression::from(2)),
+                        right: Box::new(Expression::Infix {
+                            operator: InfixOperator::Add,
+                            left: Box::new(Expression::from(5)),
+                            right: Box::new(Expression::from(5))
+                        }),
+                    }),
+                    Statement::Expr(Expression::Prefix {
+                        operator: PrefixOperator::Neg,
+                        right: Box::new(Expression::Infix {
+                            operator: InfixOperator::Add,
+                            left: Box::new(Expression::from(5)),
+                            right: Box::new(Expression::from(5))
+                        }),
+                    }),
+                    Statement::Expr(Expression::Prefix {
+                        operator: PrefixOperator::Not,
+                        right: Box::new(Expression::Infix {
+                            operator: InfixOperator::Eq,
+                            left: Box::new(Expression::from(true)),
+                            right: Box::new(Expression::from(true))
+                        }),
+                    }),
+                ]
+            }
+        );
+    }
+
+    #[test]
+    fn if_expressions() {
+        let mut parser = Parser::init(
+            "
+        if (x < y) { x }; \n\
+        if (x < y) { x } else { y };
+        ",
+        );
+        let program = parser.parse_program();
+
+        assert_eq!(
+            program,
+            Program {
+                statements: vec![
+                    Statement::Expr(Expression::Cond {
+                        cond: Box::new(Expression::Infix {
+                            operator: InfixOperator::Lt,
+                            left: Box::new(Expression::from("x")),
+                            right: Box::new(Expression::from("y"))
+                        }),
+                        then_: vec![Statement::Expr(Expression::from("x"))],
+                        else_: None
+                    }),
+                    Statement::Expr(Expression::Cond {
+                        cond: Box::new(Expression::Infix {
+                            operator: InfixOperator::Lt,
+                            left: Box::new(Expression::from("x")),
+                            right: Box::new(Expression::from("y"))
+                        }),
+                        then_: vec![Statement::Expr(Expression::from("x"))],
+                        else_: Some(vec![Statement::Expr(Expression::from("y"))])
+                    })
                 ]
             }
         );
