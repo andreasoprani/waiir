@@ -122,6 +122,7 @@ impl<'a> Parser<'a> {
             Token::False => Expression::from(false),
             Token::LParen => self.parse_grouped_expression(),
             Token::If => self.parse_if_expression(),
+            Token::Function => self.parse_fn_expression(),
             _ => {
                 todo!("Prefix parsing for this token not implemented yet.")
             }
@@ -203,6 +204,46 @@ impl<'a> Parser<'a> {
             then_,
             else_,
         }
+    }
+
+    fn parse_fn_expression(&mut self) -> Expression {
+        self.advance_token();
+
+        assert_token!(self.curr_token, Token::LParen);
+        self.advance_token();
+
+        let mut args: Vec<String> = vec![];
+
+        loop {
+            match &self.curr_token {
+                Token::Ident(arg) => args.push(arg.to_string()),
+                Token::RParen => {
+                    self.advance_token();
+                    break;
+                }
+                _ => panic!("Invalid function argument"),
+            }
+            self.advance_token();
+
+            match &self.curr_token {
+                Token::Comma => self.advance_token(),
+                Token::RParen => {
+                    self.advance_token();
+                    break;
+                }
+                _ => panic!("Invalid token in function argument list"),
+            }
+        }
+
+        assert_token!(self.curr_token, Token::LBrace);
+        self.advance_token();
+
+        let body = match self.parse_block_statement() {
+            Statement::Block(statements) => statements,
+            _ => panic!("Wrong block statement return!"),
+        };
+
+        Expression::Func { args, body }
     }
 
     fn peek_precedence(&mut self) -> Precedence {
@@ -692,6 +733,47 @@ mod tests {
                         then_: vec![Statement::Expr(Expression::from("x"))],
                         else_: Some(vec![Statement::Expr(Expression::from("y"))])
                     })
+                ]
+            }
+        );
+    }
+
+    #[test]
+    fn fn_expressions() {
+        let mut parser = Parser::init(
+            "
+            fn() {}; \n\
+            fn(x) {}; \n\
+            fn(x, y, z) {}; \n\
+            fn(x, y) { x + y; };
+        ",
+        );
+        let program = parser.parse_program();
+
+        assert_eq!(
+            program,
+            Program {
+                statements: vec![
+                    Statement::Expr(Expression::Func {
+                        args: vec![],
+                        body: vec![],
+                    }),
+                    Statement::Expr(Expression::Func {
+                        args: vec![String::from("x")],
+                        body: vec![],
+                    }),
+                    Statement::Expr(Expression::Func {
+                        args: vec![String::from("x"), String::from("y"), String::from("z")],
+                        body: vec![],
+                    }),
+                    Statement::Expr(Expression::Func {
+                        args: vec![String::from("x"), String::from("y")],
+                        body: vec![Statement::Expr(Expression::Infix {
+                            operator: InfixOperator::Add,
+                            left: Box::new(Expression::from("x")),
+                            right: Box::new(Expression::from("y"))
+                        })],
+                    }),
                 ]
             }
         );
