@@ -107,7 +107,10 @@ impl<'a> Parser<'a> {
 
         while self.peek_token != Token::Semicolon && precedence < self.peek_precedence() {
             self.advance_token();
-            left = self.parse_infix_expression(left);
+            left = match self.curr_token {
+                Token::LParen => self.parse_call_expression(left),
+                _ => self.parse_infix_expression(left),
+            }
         }
 
         left
@@ -214,26 +217,22 @@ impl<'a> Parser<'a> {
 
         let mut args: Vec<String> = vec![];
 
-        loop {
+        while self.curr_token != Token::RParen {
             match &self.curr_token {
                 Token::Ident(arg) => args.push(arg.to_string()),
-                Token::RParen => {
-                    self.advance_token();
-                    break;
-                }
                 _ => panic!("Invalid function argument"),
             }
+
             self.advance_token();
 
             match &self.curr_token {
                 Token::Comma => self.advance_token(),
-                Token::RParen => {
-                    self.advance_token();
-                    break;
-                }
+                Token::RParen => break,
                 _ => panic!("Invalid token in function argument list"),
             }
         }
+
+        self.advance_token();
 
         assert_token!(self.curr_token, Token::LBrace);
         self.advance_token();
@@ -244,6 +243,29 @@ impl<'a> Parser<'a> {
         };
 
         Expression::Func { args, body }
+    }
+
+    fn parse_call_expression(&mut self, func: Expression) -> Expression {
+        self.advance_token();
+
+        let mut args: Vec<Expression> = vec![];
+
+        while self.curr_token != Token::RParen {
+            args.push(self.parse_expression(Precedence::Lowest));
+
+            self.advance_token();
+
+            match &self.curr_token {
+                Token::Comma => self.advance_token(),
+                Token::RParen => break,
+                _ => panic!("Invalid token in function argument list"),
+            }
+        }
+
+        Expression::Call {
+            func: Box::new(func),
+            args,
+        }
     }
 
     fn peek_precedence(&mut self) -> Precedence {
@@ -746,7 +768,7 @@ mod tests {
             fn(x) {}; \n\
             fn(x, y, z) {}; \n\
             fn(x, y) { x + y; };
-        ",
+            ",
         );
         let program = parser.parse_program();
 
@@ -773,6 +795,127 @@ mod tests {
                             left: Box::new(Expression::from("x")),
                             right: Box::new(Expression::from("y"))
                         })],
+                    }),
+                ]
+            }
+        );
+    }
+
+    #[test]
+    fn call_expressions() {
+        let mut parser = Parser::init(
+            "
+            add(1, 2 * 3, 4 + 5);
+            ",
+        );
+        let program = parser.parse_program();
+
+        assert_eq!(
+            program,
+            Program {
+                statements: vec![Statement::Expr(Expression::Call {
+                    func: Box::new(Expression::from("add")),
+                    args: vec![
+                        Expression::from(1),
+                        Expression::Infix {
+                            operator: InfixOperator::Mul,
+                            left: Box::new(Expression::from(2)),
+                            right: Box::new(Expression::from(3)),
+                        },
+                        Expression::Infix {
+                            operator: InfixOperator::Add,
+                            left: Box::new(Expression::from(4)),
+                            right: Box::new(Expression::from(5)),
+                        },
+                    ]
+                }),]
+            }
+        );
+    }
+
+    #[test]
+    fn call_precedence() {
+        let mut parser = Parser::init(
+            "
+            a + add(b * c) + d; \n\
+            add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8)); \n\
+            add(a + b + c * d / f + g);
+            ",
+        );
+        let program = parser.parse_program();
+
+        assert_eq!(
+            program,
+            Program {
+                statements: vec![
+                    Statement::Expr(Expression::Infix {
+                        operator: InfixOperator::Add,
+                        left: Box::new(Expression::Infix {
+                            operator: InfixOperator::Add,
+                            left: Box::new(Expression::from("a")),
+                            right: Box::new(Expression::Call {
+                                func: Box::new(Expression::from("add")),
+                                args: vec![Expression::Infix {
+                                    operator: InfixOperator::Mul,
+                                    left: Box::new(Expression::from("b")),
+                                    right: Box::new(Expression::from("c")),
+                                }]
+                            })
+                        }),
+                        right: Box::new(Expression::from("d"))
+                    }),
+                    Statement::Expr(Expression::Call {
+                        func: Box::new(Expression::from("add")),
+                        args: vec![
+                            Expression::from("a"),
+                            Expression::from("b"),
+                            Expression::from(1),
+                            Expression::Infix {
+                                operator: InfixOperator::Mul,
+                                left: Box::new(Expression::from(2)),
+                                right: Box::new(Expression::from(3)),
+                            },
+                            Expression::Infix {
+                                operator: InfixOperator::Add,
+                                left: Box::new(Expression::from(4)),
+                                right: Box::new(Expression::from(5)),
+                            },
+                            Expression::Call {
+                                func: Box::new(Expression::from("add")),
+                                args: vec![
+                                    Expression::from(6),
+                                    Expression::Infix {
+                                        operator: InfixOperator::Mul,
+                                        left: Box::new(Expression::from(7)),
+                                        right: Box::new(Expression::from(8)),
+                                    },
+                                ]
+                            }
+                        ]
+                    }),
+                    Statement::Expr(Expression::Call {
+                        func: Box::new(Expression::from("add")),
+                        args: vec![Expression::Infix {
+                            operator: InfixOperator::Add,
+                            left: Box::new(Expression::Infix {
+                                operator: InfixOperator::Add,
+                                left: Box::new(Expression::Infix {
+                                    operator: InfixOperator::Add,
+                                    left: Box::new(Expression::from("a")),
+                                    right: Box::new(Expression::from("b")),
+                                }),
+                                right: Box::new(Expression::Infix {
+                                    operator: InfixOperator::Div,
+                                    left: Box::new(Expression::Infix {
+                                        operator: InfixOperator::Mul,
+                                        left: Box::new(Expression::from("c")),
+                                        right: Box::new(Expression::from("d")),
+                                    }),
+                                    right: Box::new(Expression::from("f")),
+                                }),
+                            }),
+                            right: Box::new(Expression::from("g")),
+                        },]
                     }),
                 ]
             }
