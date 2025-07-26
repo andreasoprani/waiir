@@ -1,11 +1,17 @@
+use crate::Statement;
 use std::fmt;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Object {
     Null,
     Int(i64),
     Bool(bool),
     Return(Box<Object>),
+    // Function {
+    //     parameters: Vec<String>,
+    //     body: Vec<Statement>,
+    //     environment: Environment,
+    // },
 }
 
 impl fmt::Display for Object {

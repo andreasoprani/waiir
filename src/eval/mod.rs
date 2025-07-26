@@ -1,17 +1,20 @@
+mod environment;
 mod object;
 
 use crate::{Expression, InfixOperator, Parser, PrefixOperator, Program, Statement};
+use environment::Environment;
 use object::Object;
+use std::rc::Rc;
 
 pub trait Eval {
-    fn eval(self) -> Object;
+    fn eval(self, env: Rc<Environment>) -> Object;
 }
 
 impl Eval for Program {
-    fn eval(self) -> Object {
+    fn eval(self, env: Rc<Environment>) -> Object {
         let mut result: Object = Object::Null;
         for statement in self.statements {
-            result = statement.eval();
+            result = statement.eval(Rc::clone(&env));
             if let Object::Return(_res) = result {
                 return *_res;
             }
@@ -21,51 +24,55 @@ impl Eval for Program {
 }
 
 impl Eval for Statement {
-    fn eval(self) -> Object {
+    fn eval(self, env: Rc<Environment>) -> Object {
         match self {
-            Statement::Expr(expr) => expr.eval(),
+            Statement::Expr(expr) => expr.eval(Rc::clone(&env)),
             Statement::Block(stmts) => {
                 let mut result: Object = Object::Null;
                 for statement in stmts {
-                    result = statement.eval();
+                    result = statement.eval(Rc::clone(&env));
                     if matches!(result, Object::Return(_)) {
                         return result;
                     }
                 }
                 result
             }
-            Statement::Let { name: _, value: _ } => todo!(),
-            Statement::Return { value } => Object::Return(Box::new(value.eval())),
+            Statement::Let { name, value } => {
+                let obj = value.eval(Rc::clone(&env));
+                env.set_var(name, obj)
+            }
+            Statement::Return { value } => Object::Return(Box::new(value.eval(Rc::clone(&env)))),
         }
     }
 }
 
 impl Eval for Expression {
-    fn eval(self) -> Object {
+    fn eval(self, env: Rc<Environment>) -> Object {
         match self {
             Expression::Bool(value) => Object::Bool(value),
             Expression::Int(value) => Object::Int(value),
             Expression::Ident(ident) if ident == "null" => Object::Null,
+            Expression::Ident(ident) => env.get_var(ident),
             Expression::Prefix { operator, right } => {
-                Expression::eval_prefix(operator, right.eval())
+                Expression::eval_prefix(operator, right.eval(env))
             }
             Expression::Infix {
                 operator,
                 left,
                 right,
-            } => Expression::eval_infix(operator, left.eval(), right.eval()),
+            } => Expression::eval_infix(operator, left.eval(Rc::clone(&env)), right.eval(env)),
             Expression::Cond { cond, then_, else_ } => {
-                let evaluated_cond = cond.eval().to_bool();
+                let evaluated_cond = cond.eval(Rc::clone(&env)).to_bool();
 
                 if evaluated_cond {
-                    Statement::Block(then_).eval()
+                    Statement::Block(then_).eval(env)
                 } else if let Some(stmts) = else_ {
-                    Statement::Block(stmts).eval()
+                    Statement::Block(stmts).eval(env)
                 } else {
                     Object::Null
                 }
             }
-            _ => Object::Null,
+            _ => todo!(),
         }
     }
 }
@@ -128,7 +135,8 @@ impl Expression {
 }
 
 pub fn eval_input(input: &str) -> Object {
-    Parser::init(input).parse_program().eval()
+    let env = Environment::default();
+    Parser::init(input).parse_program().eval(Rc::new(env))
 }
 
 #[cfg(test)]
@@ -211,14 +219,39 @@ mod tests {
         );
     }
 
+    #[test]
+    fn let_stmts() {
+        assert_eq!(eval_input("let a = 5; a;"), Object::Int(5));
+        assert_eq!(eval_input("let a = 5 * 5; a;"), Object::Int(25));
+        assert_eq!(eval_input("let a = 5; let b = a; b;"), Object::Int(5));
+        assert_eq!(
+            eval_input("let a = 5; let b = a; let c = a + b + 5; c;"),
+            Object::Int(15)
+        );
+    }
+
     // #[test]
-    // fn let_stmts() {
-    //     assert_eq!(eval_input("let a = 5; a;"), Object::Int(5));
-    //     assert_eq!(eval_input("let a = 5 * 5; a;"), Object::Int(25));
-    //     assert_eq!(eval_input("let a = 5; let b = a; b;"), Object::Int(5));
+    // fn fn_calls() {
     //     assert_eq!(
-    //         eval_input("let a = 5; let b = a; let c = a + b + 5; c;"),
-    //         Object::Int(15)
+    //         eval_input("let identity = fn(x) { x; }; identity(5);"),
+    //         Object::Int(5)
     //     );
+    //     assert_eq!(
+    //         eval_input("let identity = fn(x) { return x; }; identity(5);"),
+    //         Object::Int(5)
+    //     );
+    //     assert_eq!(
+    //         eval_input("let double = fn(x) { x * 2; }; double(5);"),
+    //         Object::Int(10)
+    //     );
+    //     assert_eq!(
+    //         eval_input("let add = fn(x, y) { x + y; }; add(5, 5);"),
+    //         Object::Int(10)
+    //     );
+    //     assert_eq!(
+    //         eval_input("let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));"),
+    //         Object::Int(20)
+    //     );
+    //     assert_eq!(eval_input("fn(x) { x; }(5)"), Object::Int(5));
     // }
 }
