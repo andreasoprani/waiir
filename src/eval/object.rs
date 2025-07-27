@@ -1,4 +1,5 @@
 use crate::Statement;
+use crate::eval::Environment;
 use std::fmt;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -7,11 +8,11 @@ pub enum Object {
     Int(i64),
     Bool(bool),
     Return(Box<Object>),
-    // Function {
-    //     parameters: Vec<String>,
-    //     body: Vec<Statement>,
-    //     environment: Environment,
-    // },
+    Function {
+        parameters: Vec<String>,
+        body: Vec<Statement>,
+        environment: Environment,
+    },
 }
 
 impl fmt::Display for Object {
@@ -21,6 +22,14 @@ impl fmt::Display for Object {
             Object::Int(value) => write!(f, "{value}"),
             Object::Bool(value) => write!(f, "{value}"),
             Object::Return(value) => write!(f, "Return {value}"),
+            Object::Function {
+                parameters,
+                body: _,
+                environment: _,
+            } => {
+                let params = parameters.join(", ");
+                write!(f, "fn({params}) {{...}}")
+            }
         }
     }
 }
@@ -32,6 +41,7 @@ impl Object {
             Object::Int(value) => *value != 0,
             Object::Null => false,
             Object::Return(value) => value.to_bool(),
+            Object::Function { .. } => true,
         }
     }
 }

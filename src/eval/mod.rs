@@ -2,7 +2,7 @@ mod environment;
 mod object;
 
 use crate::{Expression, InfixOperator, Parser, PrefixOperator, Program, Statement};
-use environment::Environment;
+pub use environment::Environment;
 use object::Object;
 use std::rc::Rc;
 
@@ -39,7 +39,7 @@ impl Eval for Statement {
             }
             Statement::Let { name, value } => {
                 let obj = value.eval(Rc::clone(&env));
-                env.set_var(name, obj)
+                env.set(name, obj)
             }
             Statement::Return { value } => Object::Return(Box::new(value.eval(Rc::clone(&env)))),
         }
@@ -52,7 +52,7 @@ impl Eval for Expression {
             Expression::Bool(value) => Object::Bool(value),
             Expression::Int(value) => Object::Int(value),
             Expression::Ident(ident) if ident == "null" => Object::Null,
-            Expression::Ident(ident) => env.get_var(ident),
+            Expression::Ident(ident) => env.get(ident),
             Expression::Prefix { operator, right } => {
                 Expression::eval_prefix(operator, right.eval(env))
             }
@@ -72,7 +72,51 @@ impl Eval for Expression {
                     Object::Null
                 }
             }
-            _ => todo!(),
+            Expression::Func { args, body } => Object::Function {
+                parameters: args,
+                body,
+                environment: Environment::init_with_outer(Rc::clone(&env)),
+            },
+            Expression::Call { func, args } => {
+                let func_to_call = func.eval(Rc::clone(&env));
+
+                let Object::Function {
+                    parameters,
+                    body,
+                    environment: func_env,
+                } = func_to_call
+                else {
+                    println!("{func_to_call} is not a function");
+                    panic!();
+                };
+
+                let func_env = Rc::new(Environment::init_with_outer(Rc::new(func_env)));
+
+                let arguments: Vec<Object> = args
+                    .into_iter()
+                    .map(|arg| arg.eval(Rc::clone(&func_env)))
+                    .collect();
+
+                let n_params = parameters.len();
+                let n_args = arguments.len();
+                if n_params != n_args {
+                    println!(
+                        "Invalid function call argument counts, {n_params} requested, {n_args} provided."
+                    );
+                    panic!()
+                }
+
+                for (name, val) in parameters.iter().zip(arguments) {
+                    func_env.set(name, val);
+                }
+
+                let evaluated_func = Statement::Block(body).eval(Rc::clone(&func_env));
+                if let Object::Return(obj) = evaluated_func {
+                    *obj
+                } else {
+                    evaluated_func
+                }
+            }
         }
     }
 }
@@ -97,12 +141,7 @@ impl Expression {
     }
 
     fn eval_bang(right: Object) -> bool {
-        match right {
-            Object::Bool(value) => !value,
-            Object::Int(value) => value == 0,
-            Object::Null => true,
-            Object::Return(value) => Self::eval_bang(*value),
-        }
+        !right.to_bool()
     }
 
     fn eval_infix(operator: InfixOperator, left: Object, right: Object) -> Object {
@@ -134,9 +173,13 @@ impl Expression {
     }
 }
 
+pub fn eval_with_env(input: &str, env: Rc<Environment>) -> Object {
+    Parser::init(input).parse_program().eval(env)
+}
+
 pub fn eval_input(input: &str) -> Object {
     let env = Environment::default();
-    Parser::init(input).parse_program().eval(Rc::new(env))
+    eval_with_env(input, Rc::new(env))
 }
 
 #[cfg(test)]
@@ -230,28 +273,44 @@ mod tests {
         );
     }
 
-    // #[test]
-    // fn fn_calls() {
-    //     assert_eq!(
-    //         eval_input("let identity = fn(x) { x; }; identity(5);"),
-    //         Object::Int(5)
-    //     );
-    //     assert_eq!(
-    //         eval_input("let identity = fn(x) { return x; }; identity(5);"),
-    //         Object::Int(5)
-    //     );
-    //     assert_eq!(
-    //         eval_input("let double = fn(x) { x * 2; }; double(5);"),
-    //         Object::Int(10)
-    //     );
-    //     assert_eq!(
-    //         eval_input("let add = fn(x, y) { x + y; }; add(5, 5);"),
-    //         Object::Int(10)
-    //     );
-    //     assert_eq!(
-    //         eval_input("let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));"),
-    //         Object::Int(20)
-    //     );
-    //     assert_eq!(eval_input("fn(x) { x; }(5)"), Object::Int(5));
-    // }
+    #[test]
+    fn fn_calls() {
+        assert_eq!(
+            eval_input("let identity = fn(x) { x; }; identity(5);"),
+            Object::Int(5)
+        );
+        assert_eq!(
+            eval_input("let identity = fn(x) { return x; }; identity(5);"),
+            Object::Int(5)
+        );
+        assert_eq!(
+            eval_input("let double = fn(x) { x * 2; }; double(5);"),
+            Object::Int(10)
+        );
+        assert_eq!(
+            eval_input("let add = fn(x, y) { x + y; }; add(5, 5);"),
+            Object::Int(10)
+        );
+        assert_eq!(
+            eval_input("let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));"),
+            Object::Int(20)
+        );
+        assert_eq!(eval_input("fn(x) { x; }(5)"), Object::Int(5));
+    }
+
+    #[test]
+    fn closure() {
+        assert_eq!(
+            eval_input(
+                " \n\
+                let newAdder = fn(x) { \n\
+                    fn(y) { x + y }; \n\
+                }; \n\
+                let addTwo = newAdder(2); \n\
+                addTwo(2)
+                "
+            ),
+            Object::Int(4)
+        )
+    }
 }

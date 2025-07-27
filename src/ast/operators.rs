@@ -1,6 +1,6 @@
 use crate::Token;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum PrefixOperator {
     Not,
     Neg,
@@ -16,7 +16,7 @@ impl From<&Token> for PrefixOperator {
     }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum InfixOperator {
     Add,
     Sub,

@@ -1,6 +1,6 @@
 use crate::ast::expression::Expression;
 
-#[derive(PartialEq, Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Statement {
     Let { name: String, value: Expression },
     Return { value: Expression },
