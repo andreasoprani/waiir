@@ -1,5 +1,6 @@
 use crate::Statement;
 use crate::eval::Environment;
+use crate::eval::builtin::BuiltinFunction;
 use std::fmt;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -14,6 +15,7 @@ pub enum Object {
         body: Vec<Statement>,
         environment: Environment,
     },
+    Builtin(BuiltinFunction),
 }
 
 impl fmt::Display for Object {
@@ -32,6 +34,7 @@ impl fmt::Display for Object {
                 let params = parameters.join(", ");
                 write!(f, "fn({params}) {{...}}")
             }
+            Object::Builtin(value) => write!(f, "Builtin function '{value}'"),
         }
     }
 }
@@ -41,10 +44,11 @@ impl Object {
         match self {
             Object::Bool(value) => *value,
             Object::Int(value) => *value != 0,
-            Object::String(value) => value.len() > 0,
+            Object::String(value) => !value.is_empty(),
             Object::Null => false,
             Object::Return(value) => value.to_bool(),
             Object::Function { .. } => true,
+            Object::Builtin(_) => true,
         }
     }
 }

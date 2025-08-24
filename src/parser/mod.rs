@@ -259,7 +259,9 @@ impl<'a> Parser<'a> {
             match &self.curr_token {
                 Token::Comma => self.advance_token(),
                 Token::RParen => break,
-                _ => panic!("Invalid token in function argument list"),
+                _ => {
+                    panic!("Invalid token in function argument list")
+                }
             }
         }
 

@@ -139,7 +139,6 @@ impl<'a> Lexer<'a> {
             string.push(ch);
             self.advance_char();
         }
-        self.advance_char();
         Token::String(string)
     }
 }

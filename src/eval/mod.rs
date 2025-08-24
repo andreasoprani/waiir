@@ -1,7 +1,9 @@
+mod builtin;
 mod environment;
 mod object;
 
 use crate::{Expression, InfixOperator, Parser, PrefixOperator, Program, Statement};
+use builtin::BuiltinFunction;
 pub use environment::Environment;
 use object::Object;
 use std::rc::Rc;
@@ -53,7 +55,10 @@ impl Eval for Expression {
             Expression::Int(value) => Object::Int(value),
             Expression::String(string) => Object::String(string),
             Expression::Ident(ident) if ident == "null" => Object::Null,
-            Expression::Ident(ident) => env.get(ident),
+            Expression::Ident(ident) => match ident.as_str() {
+                "len" => Object::Builtin(BuiltinFunction::Len),
+                _ => env.get(ident),
+            },
             Expression::Prefix { operator, right } => {
                 Expression::eval_prefix(operator, right.eval(env))
             }
@@ -81,41 +86,50 @@ impl Eval for Expression {
             Expression::Call { func, args } => {
                 let func_to_call = func.eval(Rc::clone(&env));
 
-                let Object::Function {
-                    parameters,
-                    body,
-                    environment: func_env,
-                } = func_to_call
-                else {
-                    println!("{func_to_call} is not a function");
-                    panic!();
-                };
+                match func_to_call {
+                    Object::Function {
+                        parameters,
+                        body,
+                        environment: func_env,
+                    } => {
+                        let func_env = Rc::new(Environment::init_with_outer(Rc::new(func_env)));
 
-                let func_env = Rc::new(Environment::init_with_outer(Rc::new(func_env)));
+                        let arguments: Vec<Object> = args
+                            .into_iter()
+                            .map(|arg| arg.eval(Rc::clone(&func_env)))
+                            .collect();
 
-                let arguments: Vec<Object> = args
-                    .into_iter()
-                    .map(|arg| arg.eval(Rc::clone(&func_env)))
-                    .collect();
+                        let n_params = parameters.len();
+                        let n_args = arguments.len();
+                        if n_params != n_args {
+                            println!(
+                                "Invalid function call argument counts, {n_params} requested, {n_args} provided."
+                            );
+                            panic!()
+                        }
 
-                let n_params = parameters.len();
-                let n_args = arguments.len();
-                if n_params != n_args {
-                    println!(
-                        "Invalid function call argument counts, {n_params} requested, {n_args} provided."
-                    );
-                    panic!()
-                }
+                        for (name, val) in parameters.iter().zip(arguments) {
+                            func_env.set(name, val);
+                        }
 
-                for (name, val) in parameters.iter().zip(arguments) {
-                    func_env.set(name, val);
-                }
-
-                let evaluated_func = Statement::Block(body).eval(Rc::clone(&func_env));
-                if let Object::Return(obj) = evaluated_func {
-                    *obj
-                } else {
-                    evaluated_func
+                        let evaluated_func = Statement::Block(body).eval(Rc::clone(&func_env));
+                        if let Object::Return(obj) = evaluated_func {
+                            *obj
+                        } else {
+                            evaluated_func
+                        }
+                    }
+                    Object::Builtin(builtin_fn) => {
+                        let arguments: Vec<Object> = args
+                            .into_iter()
+                            .map(|arg| arg.eval(Rc::clone(&env)))
+                            .collect();
+                        builtin_fn.call(arguments)
+                    }
+                    _ => {
+                        println!("{func_to_call} is not a function");
+                        panic!();
+                    }
                 }
             }
         }
@@ -234,20 +248,6 @@ mod tests {
     }
 
     #[test]
-    fn string_expression() {
-        assert_eq!(
-            eval_input("\"Hello World!\""),
-            Object::String(String::from("Hello World!"))
-        );
-        assert_eq!(
-            eval_input("\"Hello\" + \" \" + \"World!\""),
-            Object::String(String::from("Hello World!"))
-        );
-        assert_eq!(eval_input("!\"Hello World!\""), Object::Bool(false));
-        assert_eq!(eval_input("!\"\""), Object::Bool(true));
-    }
-
-    #[test]
     fn if_else_expressions() {
         assert_eq!(eval_input("if (true) { 10 }"), Object::Int(10));
         assert_eq!(eval_input("if (false) { 10 }"), Object::Null);
@@ -320,5 +320,26 @@ mod tests {
             ),
             Object::Int(4)
         )
+    }
+
+    #[test]
+    fn string_expression() {
+        assert_eq!(
+            eval_input("\"Hello World!\""),
+            Object::String(String::from("Hello World!"))
+        );
+        assert_eq!(
+            eval_input("\"Hello\" + \" \" + \"World!\""),
+            Object::String(String::from("Hello World!"))
+        );
+        assert_eq!(eval_input("!\"Hello World!\""), Object::Bool(false));
+        assert_eq!(eval_input("!\"\""), Object::Bool(true));
+    }
+
+    #[test]
+    fn builtin_functions() {
+        assert_eq!(eval_input("len(\"\")"), Object::Int(0));
+        assert_eq!(eval_input("len(\"four\")"), Object::Int(4));
+        assert_eq!(eval_input("len(\"hello world\")"), Object::Int(11));
     }
 }
