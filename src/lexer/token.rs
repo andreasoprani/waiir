@@ -26,10 +26,12 @@ pub enum Token {
     Comma,     // ,
     Semicolon, // ;
 
-    LParen, // (
-    RParen, // )
-    LBrace, // {
-    RBrace, // }
+    LParen,   // (
+    RParen,   // )
+    LBrace,   // {
+    RBrace,   // }
+    LBracket, // [
+    RBracket, // ]
 
     // Keyboards
     Function,

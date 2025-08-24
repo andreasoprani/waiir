@@ -127,6 +127,7 @@ impl<'a> Parser<'a> {
             Token::LParen => self.parse_grouped_expression(),
             Token::If => self.parse_if_expression(),
             Token::Function => self.parse_fn_expression(),
+            Token::LBracket => self.parse_array_expression(),
             _ => {
                 todo!("Prefix parsing for this token not implemented yet.")
             }
@@ -143,12 +144,19 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_infix_expression(&mut self, left: Expression) -> Expression {
-        let precedence = self.curr_precedence();
         let operator = InfixOperator::from(&self.curr_token);
-
+        let precedence = match operator {
+            InfixOperator::Index => Precedence::Lowest,
+            _ => self.curr_precedence(),
+        };
         self.advance_token();
 
         let right = self.parse_expression(precedence);
+
+        if operator == InfixOperator::Index {
+            assert_token!(self.peek_token, Token::RBracket);
+            self.advance_token();
+        }
 
         Expression::Infix {
             operator,
@@ -166,6 +174,28 @@ impl<'a> Parser<'a> {
         self.advance_token();
 
         exp
+    }
+
+    fn parse_array_expression(&mut self) -> Expression {
+        self.advance_token();
+
+        let mut content: Vec<Expression> = vec![];
+
+        while self.curr_token != Token::RBracket {
+            content.push(self.parse_expression(Precedence::Lowest));
+
+            self.advance_token();
+
+            match &self.curr_token {
+                Token::Comma => self.advance_token(),
+                Token::RBracket => break,
+                _ => {
+                    panic!("Invalid token in function argument list")
+                }
+            }
+        }
+
+        Expression::Array(content)
     }
 
     fn parse_if_expression(&mut self) -> Expression {
@@ -467,21 +497,24 @@ mod tests {
     fn op_precedence_expressions() {
         let mut parser = Parser::init(
             "-a * b; \n\
-            !-a;                        \n\
-            a + b + c;                  \n\
-            a + b - c;                  \n\
-            a * b * c;                  \n\
-            a * b / c;                  \n\
-            a + b / c;                  \n\
-            a + b * c + d / e - f;      \n\
-            3 + 4; -5 * 5;              \n\
-            5 > 4 == 3 < 4;             \n\
-            5 < 4 != 3 > 4;             \n\
-            3 + 4 * 5 == 3 * 1 + 4 * 5; \n\
-            true;                       \n\
-            false;                      \n\
-            3 > 5 == false;             \n\
-            3 < 5 == true;",
+            !-a;                                \n\
+            a + b + c;                          \n\
+            a + b - c;                          \n\
+            a * b * c;                          \n\
+            a * b / c;                          \n\
+            a + b / c;                          \n\
+            a + b * c + d / e - f;              \n\
+            3 + 4; -5 * 5;                      \n\
+            5 > 4 == 3 < 4;                     \n\
+            5 < 4 != 3 > 4;                     \n\
+            3 + 4 * 5 == 3 * 1 + 4 * 5;         \n\
+            true;                               \n\
+            false;                              \n\
+            3 > 5 == false;                     \n\
+            3 < 5 == true;                      \n\
+            a * [1, 2, 3, 4][b * c] * d         \n\
+            add(a * b[2], b[1], 2 * [1, 2][1])  \n\
+            ",
         );
         let program = parser.parse_program();
 
@@ -654,6 +687,59 @@ mod tests {
                         }),
                         right: Box::new(Expression::from(true)),
                     }),
+                    Statement::Expr(Expression::Infix {
+                        operator: InfixOperator::Mul,
+                        left: Box::new(Expression::Infix {
+                            operator: InfixOperator::Mul,
+                            left: Box::new(Expression::Ident("a".into())),
+                            right: Box::new(Expression::Infix {
+                                operator: InfixOperator::Index,
+                                left: Box::new(Expression::Array(vec![
+                                    Expression::from(1),
+                                    Expression::from(2),
+                                    Expression::from(3),
+                                    Expression::from(4),
+                                ])),
+                                right: Box::new(Expression::Infix {
+                                    operator: InfixOperator::Mul,
+                                    left: Box::new(Expression::Ident("b".into())),
+                                    right: Box::new(Expression::Ident("c".into())),
+                                })
+                            }),
+                        }),
+                        right: Box::new(Expression::Ident("d".into())),
+                    }),
+                    Statement::Expr(Expression::Call {
+                        func: Box::new(Expression::Ident("add".into())),
+                        args: vec![
+                            Expression::Infix {
+                                operator: InfixOperator::Mul,
+                                left: Box::new(Expression::Ident("a".into())),
+                                right: Box::new(Expression::Infix {
+                                    operator: InfixOperator::Index,
+                                    left: Box::new(Expression::Ident("b".into())),
+                                    right: Box::new(Expression::from(2))
+                                })
+                            },
+                            Expression::Infix {
+                                operator: InfixOperator::Index,
+                                left: Box::new(Expression::Ident("b".into())),
+                                right: Box::new(Expression::from(1))
+                            },
+                            Expression::Infix {
+                                operator: InfixOperator::Mul,
+                                left: Box::new(Expression::from(2)),
+                                right: Box::new(Expression::Infix {
+                                    operator: InfixOperator::Index,
+                                    left: Box::new(Expression::Array(vec![
+                                        Expression::from(1),
+                                        Expression::from(2),
+                                    ])),
+                                    right: Box::new(Expression::from(1))
+                                })
+                            },
+                        ]
+                    })
                 ]
             }
         );
@@ -936,6 +1022,52 @@ mod tests {
                 statements: vec![Statement::Expr(Expression::String(String::from(
                     "hello world"
                 ))),]
+            }
+        );
+    }
+
+    #[test]
+    fn array_literal_expression() {
+        let mut parser = Parser::init("[1, 2 * 2, 3 + 3]");
+        let program = parser.parse_program();
+
+        assert_eq!(
+            program,
+            Program {
+                statements: vec![Statement::Expr(Expression::Array(vec![
+                    Expression::Int(1),
+                    Expression::Infix {
+                        operator: InfixOperator::Mul,
+                        left: Box::new(Expression::Int(2)),
+                        right: Box::new(Expression::Int(2)),
+                    },
+                    Expression::Infix {
+                        operator: InfixOperator::Add,
+                        left: Box::new(Expression::Int(3)),
+                        right: Box::new(Expression::Int(3)),
+                    },
+                ])),]
+            }
+        );
+    }
+
+    #[test]
+    fn array_indexing() {
+        let mut parser = Parser::init("myArray[1 + 1]");
+        let program = parser.parse_program();
+
+        assert_eq!(
+            program,
+            Program {
+                statements: vec![Statement::Expr(Expression::Infix {
+                    operator: InfixOperator::Index,
+                    left: Box::new(Expression::Ident("myArray".into())),
+                    right: Box::new(Expression::Infix {
+                        operator: InfixOperator::Add,
+                        left: Box::new(Expression::Int(1)),
+                        right: Box::new(Expression::Int(1)),
+                    })
+                })]
             }
         );
     }

@@ -9,6 +9,7 @@ pub enum Precedence {
     Product,
     Prefix,
     Call,
+    Index,
 }
 
 impl Precedence {
@@ -23,6 +24,7 @@ impl Precedence {
             Token::Asterisk => Precedence::Product,
             Token::Slash => Precedence::Product,
             Token::LParen => Precedence::Call,
+            Token::LBracket => Precedence::Index,
             _ => Precedence::Lowest,
         }
     }

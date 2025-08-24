@@ -31,6 +31,7 @@ pub enum Expression {
         then_: Vec<Statement>,
         else_: Option<Vec<Statement>>,
     },
+    Array(Vec<Expression>),
 }
 
 impl From<i64> for Expression {

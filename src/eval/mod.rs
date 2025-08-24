@@ -59,6 +59,12 @@ impl Eval for Expression {
                 "len" => Object::Builtin(BuiltinFunction::Len),
                 _ => env.get(ident),
             },
+            Expression::Array(content) => Object::Array(
+                content
+                    .iter()
+                    .map(|c| c.to_owned().eval(Rc::clone(&env)))
+                    .collect(),
+            ),
             Expression::Prefix { operator, right } => {
                 Expression::eval_prefix(operator, right.eval(env))
             }
@@ -173,6 +179,12 @@ impl Expression {
             (Object::Int(l), Object::Int(r), InfixOperator::Gt) => Object::Bool(l > r),
             (Object::Int(l), Object::Int(r), InfixOperator::Lt) => Object::Bool(l < r),
             (Object::String(l), Object::String(r), InfixOperator::Add) => Object::String(l + &r),
+            (Object::Array(content), Object::Int(index), InfixOperator::Index) => {
+                if index < 0 || index >= content.len().try_into().unwrap() {
+                    return Object::Null;
+                }
+                content[index as usize].clone()
+            }
             (l, r, op) => {
                 println!("Invalid operation ({op:?}) between {l:?} and {r:?}!");
                 panic!();
@@ -341,5 +353,36 @@ mod tests {
         assert_eq!(eval_input("len(\"\")"), Object::Int(0));
         assert_eq!(eval_input("len(\"four\")"), Object::Int(4));
         assert_eq!(eval_input("len(\"hello world\")"), Object::Int(11));
+    }
+
+    #[test]
+    fn array_literals() {
+        assert_eq!(
+            eval_input("[1, 2 * 2, 3 + 3]"),
+            Object::Array(vec![Object::Int(1), Object::Int(4), Object::Int(6),]),
+        );
+    }
+
+    #[test]
+    fn index_operations() {
+        assert_eq!(eval_input("[1, 2, 3][0]"), Object::Int(1));
+        assert_eq!(eval_input("[1, 2, 3][1]"), Object::Int(2));
+        assert_eq!(eval_input("[1, 2, 3][2]"), Object::Int(3));
+        assert_eq!(eval_input("let i = 0; [1][i]"), Object::Int(1));
+        assert_eq!(eval_input("[1, 2, 3][1 + 1]"), Object::Int(3));
+        assert_eq!(
+            eval_input("let myArray = [1, 2, 3]; myArray[2]"),
+            Object::Int(3)
+        );
+        assert_eq!(
+            eval_input("let myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2]"),
+            Object::Int(6)
+        );
+        assert_eq!(
+            eval_input("let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i]"),
+            Object::Int(2)
+        );
+        assert_eq!(eval_input("[1, 2, 3][3]"), Object::Null);
+        assert_eq!(eval_input("[1, 2, 3][-1]"), Object::Null);
     }
 }

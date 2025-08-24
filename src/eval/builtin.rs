@@ -1,4 +1,3 @@
-use crate::Expression;
 use crate::eval::Object;
 use std::fmt;
 

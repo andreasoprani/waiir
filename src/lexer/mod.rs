@@ -52,6 +52,8 @@ impl<'a> Lexer<'a> {
             Some(')') => Token::RParen,
             Some('{') => Token::LBrace,
             Some('}') => Token::RBrace,
+            Some('[') => Token::LBracket,
+            Some(']') => Token::RBracket,
             Some('a'..='z') => self.parse_identifier(),
             Some('0'..='9') => self.parse_number(),
             Some('"') => self.parse_string(),
@@ -188,8 +190,9 @@ mod tests {
             \n\
             10 == 10; \n\
             10 != 9; \n\
-            \"foobar\"
-            \"foo bar\"",
+            \"foobar\" \n\
+            \"foo bar\" \n\
+            [1, 2];",
         );
         assert_eq!(
             lexer.get_all_tokens(),
@@ -269,6 +272,12 @@ mod tests {
                 Token::Semicolon,
                 Token::String(String::from("foobar")),
                 Token::String(String::from("foo bar")),
+                Token::LBracket,
+                Token::Int(1),
+                Token::Comma,
+                Token::Int(2),
+                Token::RBracket,
+                Token::Semicolon,
                 Token::Eof
             ]
         )

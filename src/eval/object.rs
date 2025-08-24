@@ -16,6 +16,7 @@ pub enum Object {
         environment: Environment,
     },
     Builtin(BuiltinFunction),
+    Array(Vec<Object>),
 }
 
 impl fmt::Display for Object {
@@ -35,6 +36,17 @@ impl fmt::Display for Object {
                 write!(f, "fn({params}) {{...}}")
             }
             Object::Builtin(value) => write!(f, "Builtin function '{value}'"),
+            Object::Array(content) => {
+                write!(
+                    f,
+                    "[{}]",
+                    content
+                        .iter()
+                        .map(|c| format!("{c}"))
+                        .collect::<Vec<String>>()
+                        .join(", ")
+                )
+            }
         }
     }
 }
@@ -49,6 +61,7 @@ impl Object {
             Object::Return(value) => value.to_bool(),
             Object::Function { .. } => true,
             Object::Builtin(_) => true,
+            Object::Array(content) => !content.is_empty(),
         }
     }
 }

@@ -26,6 +26,7 @@ pub enum InfixOperator {
     NotEq,
     Gt,
     Lt,
+    Index,
 }
 
 impl From<&Token> for InfixOperator {
@@ -39,6 +40,7 @@ impl From<&Token> for InfixOperator {
             Token::NotEq => Self::NotEq,
             Token::Gt => Self::Gt,
             Token::Lt => Self::Lt,
+            Token::LBracket => Self::Index,
             _ => panic!("Invalid current token as a infix operator"),
         }
     }
