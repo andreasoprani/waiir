@@ -7,6 +7,7 @@ pub enum Object {
     Null,
     Int(i64),
     Bool(bool),
+    String(String),
     Return(Box<Object>),
     Function {
         parameters: Vec<String>,
@@ -21,6 +22,7 @@ impl fmt::Display for Object {
             Object::Null => write!(f, "null"),
             Object::Int(value) => write!(f, "{value}"),
             Object::Bool(value) => write!(f, "{value}"),
+            Object::String(value) => write!(f, "{value}"),
             Object::Return(value) => write!(f, "Return {value}"),
             Object::Function {
                 parameters,
@@ -39,6 +41,7 @@ impl Object {
         match self {
             Object::Bool(value) => *value,
             Object::Int(value) => *value != 0,
+            Object::String(value) => value.len() > 0,
             Object::Null => false,
             Object::Return(value) => value.to_bool(),
             Object::Function { .. } => true,

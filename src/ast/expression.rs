@@ -8,6 +8,7 @@ pub enum Expression {
     Bool(bool),
     Int(i64),
     Ident(String),
+    String(String),
     Infix {
         operator: InfixOperator,
         left: Box<Expression>,

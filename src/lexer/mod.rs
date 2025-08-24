@@ -54,6 +54,7 @@ impl<'a> Lexer<'a> {
             Some('}') => Token::RBrace,
             Some('a'..='z') => self.parse_identifier(),
             Some('0'..='9') => self.parse_number(),
+            Some('"') => self.parse_string(),
             None => Token::Eof,
             _ => Token::Illegal,
         };
@@ -128,6 +129,19 @@ impl<'a> Lexer<'a> {
         }
         Token::Int(output as i64)
     }
+
+    fn parse_string(&mut self) -> Token {
+        self.advance_char();
+        let mut string = String::new();
+        while let Some(ch) = self.ch
+            && ch != '"'
+        {
+            string.push(ch);
+            self.advance_char();
+        }
+        self.advance_char();
+        Token::String(string)
+    }
 }
 
 #[cfg(test)]
@@ -174,7 +188,9 @@ mod tests {
             } \n\
             \n\
             10 == 10; \n\
-            10 != 9;",
+            10 != 9; \n\
+            \"foobar\"
+            \"foo bar\"",
         );
         assert_eq!(
             lexer.get_all_tokens(),
@@ -252,6 +268,8 @@ mod tests {
                 Token::NotEq,
                 Token::Int(9),
                 Token::Semicolon,
+                Token::String(String::from("foobar")),
+                Token::String(String::from("foo bar")),
                 Token::Eof
             ]
         )

@@ -51,6 +51,7 @@ impl Eval for Expression {
         match self {
             Expression::Bool(value) => Object::Bool(value),
             Expression::Int(value) => Object::Int(value),
+            Expression::String(string) => Object::String(string),
             Expression::Ident(ident) if ident == "null" => Object::Null,
             Expression::Ident(ident) => env.get(ident),
             Expression::Prefix { operator, right } => {
@@ -145,28 +146,21 @@ impl Expression {
     }
 
     fn eval_infix(operator: InfixOperator, left: Object, right: Object) -> Object {
-        match (left, right) {
-            (Object::Null, Object::Null) => Object::Null,
-            (Object::Bool(l), Object::Bool(r)) => match operator {
-                InfixOperator::Eq => Object::Bool(l == r),
-                InfixOperator::NotEq => Object::Bool(l != r),
-                _ => {
-                    println!("Cannot perform operation {operator:?} on booleans!");
-                    panic!();
-                }
-            },
-            (Object::Int(l), Object::Int(r)) => match operator {
-                InfixOperator::Add => Object::Int(l + r),
-                InfixOperator::Sub => Object::Int(l - r),
-                InfixOperator::Mul => Object::Int(l * r),
-                InfixOperator::Div => Object::Int(l / r),
-                InfixOperator::Eq => Object::Bool(l == r),
-                InfixOperator::NotEq => Object::Bool(l != r),
-                InfixOperator::Gt => Object::Bool(l > r),
-                InfixOperator::Lt => Object::Bool(l < r),
-            },
-            (l, r) => {
-                println!("Invalid operation ({operator:?}) between {l:?} and {r:?}!");
+        match (left, right, operator) {
+            (Object::Null, Object::Null, _) => Object::Null,
+            (Object::Bool(l), Object::Bool(r), InfixOperator::Eq) => Object::Bool(l == r),
+            (Object::Bool(l), Object::Bool(r), InfixOperator::NotEq) => Object::Bool(l != r),
+            (Object::Int(l), Object::Int(r), InfixOperator::Add) => Object::Int(l + r),
+            (Object::Int(l), Object::Int(r), InfixOperator::Sub) => Object::Int(l - r),
+            (Object::Int(l), Object::Int(r), InfixOperator::Mul) => Object::Int(l * r),
+            (Object::Int(l), Object::Int(r), InfixOperator::Div) => Object::Int(l / r),
+            (Object::Int(l), Object::Int(r), InfixOperator::Eq) => Object::Bool(l == r),
+            (Object::Int(l), Object::Int(r), InfixOperator::NotEq) => Object::Bool(l != r),
+            (Object::Int(l), Object::Int(r), InfixOperator::Gt) => Object::Bool(l > r),
+            (Object::Int(l), Object::Int(r), InfixOperator::Lt) => Object::Bool(l < r),
+            (Object::String(l), Object::String(r), InfixOperator::Add) => Object::String(l + &r),
+            (l, r, op) => {
+                println!("Invalid operation ({op:?}) between {l:?} and {r:?}!");
                 panic!();
             }
         }
@@ -237,6 +231,20 @@ mod tests {
         assert_eq!(eval_input("(1 < 2) == false"), Object::Bool(false));
         assert_eq!(eval_input("(1 > 2) == true"), Object::Bool(false));
         assert_eq!(eval_input("(1 > 2) == false"), Object::Bool(true));
+    }
+
+    #[test]
+    fn string_expression() {
+        assert_eq!(
+            eval_input("\"Hello World!\""),
+            Object::String(String::from("Hello World!"))
+        );
+        assert_eq!(
+            eval_input("\"Hello\" + \" \" + \"World!\""),
+            Object::String(String::from("Hello World!"))
+        );
+        assert_eq!(eval_input("!\"Hello World!\""), Object::Bool(false));
+        assert_eq!(eval_input("!\"\""), Object::Bool(true));
     }
 
     #[test]

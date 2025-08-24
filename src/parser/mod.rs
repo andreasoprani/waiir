@@ -119,8 +119,9 @@ impl<'a> Parser<'a> {
     fn parse_prefix(&mut self) -> Expression {
         match &self.curr_token {
             Token::Bang | Token::Minus => self.parse_prefix_expression(),
-            Token::Ident(value) => Expression::from(value.to_owned()),
-            Token::Int(value) => Expression::from(value.to_owned()),
+            Token::Ident(value) => Expression::Ident(value.to_owned()),
+            Token::Int(value) => Expression::Int(value.to_owned()),
+            Token::String(string) => Expression::String(string.to_owned()),
             Token::True => Expression::from(true),
             Token::False => Expression::from(false),
             Token::LParen => self.parse_grouped_expression(),
@@ -918,6 +919,21 @@ mod tests {
                         },]
                     }),
                 ]
+            }
+        );
+    }
+
+    #[test]
+    fn string_literal_expression() {
+        let mut parser = Parser::init("\"hello world\"");
+        let program = parser.parse_program();
+
+        assert_eq!(
+            program,
+            Program {
+                statements: vec![Statement::Expr(Expression::String(String::from(
+                    "hello world"
+                ))),]
             }
         );
     }
