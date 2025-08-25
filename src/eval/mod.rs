@@ -57,6 +57,10 @@ impl Eval for Expression {
             Expression::Ident(ident) if ident == "null" => Object::Null,
             Expression::Ident(ident) => match ident.as_str() {
                 "len" => Object::Builtin(BuiltinFunction::Len),
+                "first" => Object::Builtin(BuiltinFunction::First),
+                "last" => Object::Builtin(BuiltinFunction::Last),
+                "rest" => Object::Builtin(BuiltinFunction::Rest),
+                "push" => Object::Builtin(BuiltinFunction::Push),
                 _ => env.get(ident),
             },
             Expression::Array(content) => Object::Array(
@@ -384,5 +388,56 @@ mod tests {
         );
         assert_eq!(eval_input("[1, 2, 3][3]"), Object::Null);
         assert_eq!(eval_input("[1, 2, 3][-1]"), Object::Null);
+    }
+
+    #[test]
+    fn test_map_impl() {
+        let input = "
+            let map = fn(arr, f) { \n\
+                let iter = fn(arrin, accumulated) { \n\
+                    if (len(arrin) == 0) { \n\
+                        accumulated \n\
+                    } else { \n\
+                        iter(rest(arrin), push(accumulated, f(first(arrin)))); \n\
+                    } \n\
+                }; \n\
+                iter(arr, []); \n\
+            }; \n\
+            let a = [1, 2, 3, 4];
+            let double = fn(x) { x * 2 };
+            map(a, double)
+        ";
+
+        assert_eq!(
+            eval_input(input),
+            Object::Array(vec![
+                Object::Int(2),
+                Object::Int(4),
+                Object::Int(6),
+                Object::Int(8)
+            ])
+        );
+    }
+
+    #[test]
+    fn test_reduce_impl() {
+        let input = "
+            let reduce = fn(arr, initial, f) {
+                let iter = fn(arrin, result) {
+                    if (len(arrin) == 0) {
+                        result
+                    } else {
+                        iter(rest(arrin), f(result, first(arrin)));
+                    }
+                };
+                iter(arr, initial);
+            };
+            let sum = fn(arr) {
+                reduce(arr, 0, fn(initial, el) { initial + el });
+            };
+            sum([1,2,3,4,5]);
+        ";
+
+        assert_eq!(eval_input(input), Object::Int(15));
     }
 }
