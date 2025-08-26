@@ -106,7 +106,7 @@ impl Eval for Expression {
 
                         let arguments: Vec<Object> = args
                             .into_iter()
-                            .map(|arg| arg.eval(Rc::clone(&func_env)))
+                            .map(|arg| arg.eval(Rc::clone(&env)))
                             .collect();
 
                         let n_params = parameters.len();
