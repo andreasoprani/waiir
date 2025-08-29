@@ -1,7 +1,25 @@
 use crate::Statement;
 use crate::eval::Environment;
 use crate::eval::builtin::BuiltinFunction;
+use std::collections::HashMap;
 use std::fmt;
+
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+pub enum HashMapKey {
+    Bool(bool),
+    Int(i64),
+    String(String),
+}
+
+impl fmt::Display for HashMapKey {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            HashMapKey::Bool(value) => write!(f, "{value}"),
+            HashMapKey::Int(value) => write!(f, "{value}"),
+            HashMapKey::String(value) => write!(f, "{value}"),
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Object {
@@ -17,6 +35,7 @@ pub enum Object {
     },
     Builtin(BuiltinFunction),
     Array(Vec<Object>),
+    Hash(HashMap<HashMapKey, Object>),
 }
 
 impl fmt::Display for Object {
@@ -47,6 +66,16 @@ impl fmt::Display for Object {
                         .join(", ")
                 )
             }
+            Object::Hash(map) => {
+                write!(
+                    f,
+                    "{{ {} }}",
+                    map.iter()
+                        .map(|(k, v)| format!("{k}: {v}"))
+                        .collect::<Vec<String>>()
+                        .join(", ")
+                )
+            }
         }
     }
 }
@@ -62,6 +91,7 @@ impl Object {
             Object::Function { .. } => true,
             Object::Builtin(_) => true,
             Object::Array(content) => !content.is_empty(),
+            Object::Hash(map) => !map.is_empty(),
         }
     }
 }

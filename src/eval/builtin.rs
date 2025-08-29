@@ -1,4 +1,4 @@
-use crate::eval::Object;
+use crate::eval::{HashMapKey, Object};
 use std::fmt;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -46,6 +46,7 @@ impl BuiltinFunction {
         match args.first() {
             Some(Object::String(string)) => Object::Int(string.len().try_into().unwrap()),
             Some(Object::Array(content)) => Object::Int(content.len().try_into().unwrap()),
+            Some(Object::Hash(hashmap)) => Object::Int(hashmap.len().try_into().unwrap()),
             Some(o) => {
                 println!(
                     "Invalid argument for builtin function `len`, expected string or array, found {o}"
@@ -134,7 +135,7 @@ impl BuiltinFunction {
     }
 
     fn call_push(&self, args: Vec<Object>) -> Object {
-        if args.len() != 2 {
+        if args.len() < 2 {
             {
                 println!(
                     "Builtin function `push` expects 2 args, found {}.",
@@ -159,6 +160,41 @@ impl BuiltinFunction {
                 let mut new_content = content.clone();
                 new_content.push(arg2.to_owned());
                 Object::Array(new_content)
+            }
+            Object::Hash(content1) => {
+                let mut new_content = content1.clone();
+                match arg2 {
+                    Object::Array(content2) if content2.len() == 2 => {
+                        new_content.insert(match content2[0].clone() {
+                            Object::Bool(c) => HashMapKey::Bool(c),
+                            Object::Int(c) => HashMapKey::Int(c),
+                            Object::String(c) => HashMapKey::String(c),
+                            _ => {
+                                panic!(
+                                    "Invalid object type for an hash key, must be int, str or bool!"
+                                )
+                            }
+                        }, content2[1].clone());
+                    }
+                    Object::Array(_) => {
+                        println!(
+                            "Invalid second argument for builtin function `push`, expected array with 2 elements"
+                        );
+                        panic!()
+                    }
+                    Object::Hash(content2) => {
+                        for (k, v) in content2 {
+                            new_content.insert(k.clone(), v.clone());
+                        }
+                    }
+                    _ => {
+                        println!(
+                            "Invalid second argument for builtin function `push`, expected array with 2 elements or another hashmap"
+                        );
+                        panic!()
+                    }
+                }
+                Object::Hash(new_content)
             }
             o => {
                 println!(

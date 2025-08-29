@@ -128,6 +128,7 @@ impl<'a> Parser<'a> {
             Token::If => self.parse_if_expression(),
             Token::Function => self.parse_fn_expression(),
             Token::LBracket => self.parse_array_expression(),
+            Token::LBrace => self.parse_hash_expression(),
             _ => {
                 todo!("Prefix parsing for this token not implemented yet.")
             }
@@ -196,6 +197,35 @@ impl<'a> Parser<'a> {
         }
 
         Expression::Array(content)
+    }
+
+    fn parse_hash_expression(&mut self) -> Expression {
+        self.advance_token();
+
+        let mut content: Vec<(Expression, Expression)> = vec![];
+
+        while self.curr_token != Token::RBrace {
+            let left = self.parse_expression(Precedence::Lowest);
+            self.advance_token();
+
+            assert_token!(self.curr_token, Token::Colon);
+            self.advance_token();
+
+            let right = self.parse_expression(Precedence::Lowest);
+            self.advance_token();
+
+            content.push((left, right));
+
+            match &self.curr_token {
+                Token::Comma => self.advance_token(),
+                Token::RBrace => break,
+                _ => {
+                    panic!("Invalid token in function argument list")
+                }
+            }
+        }
+
+        Expression::Hash(content)
     }
 
     fn parse_if_expression(&mut self) -> Expression {
@@ -1068,6 +1098,73 @@ mod tests {
                         right: Box::new(Expression::Int(1)),
                     })
                 })]
+            }
+        );
+    }
+
+    #[test]
+    fn hash_literal_expression() {
+        let mut parser = Parser::init(
+            "{\"one\": 1, \"two\": 2, \"three\": 3}; \n\
+            {true: 1, false: 0}; \n\
+            {1: 2, 2: 4}; \n\
+            {}; \n\
+            {\"one\": 0 + 1, two: 10 - 8, \"th\" + \"ree\": 15 / 5};",
+        );
+        let program = parser.parse_program();
+
+        assert_eq!(
+            program,
+            Program {
+                statements: vec![
+                    Statement::Expr(Expression::Hash(vec![
+                        (Expression::String(String::from("one")), Expression::from(1)),
+                        (Expression::String(String::from("two")), Expression::from(2)),
+                        (
+                            Expression::String(String::from("three")),
+                            Expression::from(3)
+                        ),
+                    ])),
+                    Statement::Expr(Expression::Hash(vec![
+                        (Expression::from(true), Expression::from(1)),
+                        (Expression::from(false), Expression::from(0)),
+                    ])),
+                    Statement::Expr(Expression::Hash(vec![
+                        (Expression::from(1), Expression::from(2)),
+                        (Expression::from(2), Expression::from(4)),
+                    ])),
+                    Statement::Expr(Expression::Hash(vec![])),
+                    Statement::Expr(Expression::Hash(vec![
+                        (
+                            Expression::String(String::from("one")),
+                            Expression::Infix {
+                                operator: InfixOperator::Add,
+                                left: Box::new(Expression::from(0)),
+                                right: Box::new(Expression::from(1)),
+                            }
+                        ),
+                        (
+                            Expression::Ident(String::from("two")),
+                            Expression::Infix {
+                                operator: InfixOperator::Sub,
+                                left: Box::new(Expression::from(10)),
+                                right: Box::new(Expression::from(8)),
+                            }
+                        ),
+                        (
+                            Expression::Infix {
+                                operator: InfixOperator::Add,
+                                left: Box::new(Expression::String(String::from("th"))),
+                                right: Box::new(Expression::String(String::from("ree"))),
+                            },
+                            Expression::Infix {
+                                operator: InfixOperator::Div,
+                                left: Box::new(Expression::from(15)),
+                                right: Box::new(Expression::from(5)),
+                            },
+                        ),
+                    ])),
+                ]
             }
         );
     }

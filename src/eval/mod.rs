@@ -5,8 +5,8 @@ mod object;
 use crate::{Expression, InfixOperator, Parser, PrefixOperator, Program, Statement};
 use builtin::BuiltinFunction;
 pub use environment::Environment;
-use object::Object;
-use std::rc::Rc;
+use object::{HashMapKey, Object};
+use std::{collections::HashMap, rc::Rc};
 
 pub trait Eval {
     fn eval(self, env: Rc<Environment>) -> Object;
@@ -68,6 +68,24 @@ impl Eval for Expression {
                     .iter()
                     .map(|c| c.to_owned().eval(Rc::clone(&env)))
                     .collect(),
+            ),
+            Expression::Hash(hash_vec) => Object::Hash(
+                hash_vec
+                    .iter()
+                    .map(|(k, v)| {
+                        let key_obj = k.clone().eval(Rc::clone(&env));
+                        let value = v.clone().eval(Rc::clone(&env));
+                        let key = match key_obj {
+                            Object::Int(key) => HashMapKey::Int(key),
+                            Object::String(key) => HashMapKey::String(key),
+                            Object::Bool(key) => HashMapKey::Bool(key),
+                            _ => panic!(
+                                "Invalid object type for an hash key, must be int, str or bool!"
+                            ),
+                        };
+                        (key, value)
+                    })
+                    .collect::<HashMap<HashMapKey, Object>>(),
             ),
             Expression::Prefix { operator, right } => {
                 Expression::eval_prefix(operator, right.eval(env))
@@ -188,6 +206,25 @@ impl Expression {
                     return Object::Null;
                 }
                 content[index as usize].clone()
+            }
+            (Object::Hash(map), key_object, InfixOperator::Index) => {
+                let value = match key_object {
+                    Object::Bool(key) => map.get(&HashMapKey::Bool(key)),
+                    Object::Int(key) => map.get(&HashMapKey::Int(key)),
+                    Object::String(key) => map.get(&HashMapKey::String(key)),
+                    _ => {
+                        println!(
+                            "Invalid operation ({:?}) between {:?} and {key_object:?}!",
+                            Object::Hash(map),
+                            InfixOperator::Index
+                        );
+                        panic!();
+                    }
+                };
+                match value {
+                    Some(v) => v.clone(),
+                    None => Object::Null,
+                }
             }
             (l, r, op) => {
                 println!("Invalid operation ({op:?}) between {l:?} and {r:?}!");
@@ -391,7 +428,7 @@ mod tests {
     }
 
     #[test]
-    fn test_map_impl() {
+    fn map_impl() {
         let input = "
             let map = fn(arr, f) { \n\
                 let iter = fn(arrin, accumulated) { \n\
@@ -420,7 +457,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reduce_impl() {
+    fn reduce_impl() {
         let input = "
             let reduce = fn(arr, initial, f) {
                 let iter = fn(arrin, result) {
@@ -439,5 +476,46 @@ mod tests {
         ";
 
         assert_eq!(eval_input(input), Object::Int(15));
+    }
+
+    #[test]
+    fn hash_literals() {
+        let input = "
+            let two = \"two\"; \n\
+            { \n\
+                \"one\": 10 - 9,\n\
+                two: 1 + 1,\n\
+                \"thr\" + \"ee\": 6 / 2,\n\
+                4: 4,\n\
+                true: 5,\n\
+                false: 6\n\
+            }\n\
+        ";
+
+        assert_eq!(
+            eval_input(input),
+            Object::Hash(HashMap::from([
+                (HashMapKey::String(String::from("one")), Object::Int(1)),
+                (HashMapKey::String(String::from("two")), Object::Int(2)),
+                (HashMapKey::String(String::from("three")), Object::Int(3)),
+                (HashMapKey::Int(4), Object::Int(4)),
+                (HashMapKey::Bool(true), Object::Int(5)),
+                (HashMapKey::Bool(false), Object::Int(6))
+            ]))
+        );
+    }
+
+    #[test]
+    fn hash_index_expressions() {
+        assert_eq!(eval_input("{\"foo\": 5}[\"foo\"]"), Object::Int(5));
+        assert_eq!(eval_input("{\"foo\": 5}[\"bar\"]"), Object::Null);
+        assert_eq!(
+            eval_input("let key = \"foo\"; {\"foo\": 5}[key]"),
+            Object::Int(5)
+        );
+        assert_eq!(eval_input("{}[\"foo\"]"), Object::Null);
+        assert_eq!(eval_input("{5: 5}[5]"), Object::Int(5));
+        assert_eq!(eval_input("{true: 5}[true]"), Object::Int(5));
+        assert_eq!(eval_input("{false: 5}[false]"), Object::Int(5));
     }
 }

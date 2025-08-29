@@ -32,6 +32,7 @@ pub enum Expression {
         else_: Option<Vec<Statement>>,
     },
     Array(Vec<Expression>),
+    Hash(Vec<(Expression, Expression)>),
 }
 
 impl From<i64> for Expression {
