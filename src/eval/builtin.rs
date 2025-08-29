@@ -1,4 +1,5 @@
 use crate::eval::{HashMapKey, Object};
+use anyhow::{Result, bail};
 use std::fmt;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -23,7 +24,7 @@ impl fmt::Display for BuiltinFunction {
 }
 
 impl BuiltinFunction {
-    pub fn call(&self, args: Vec<Object>) -> Object {
+    pub fn call(&self, args: Vec<Object>) -> Result<Object> {
         match &self {
             BuiltinFunction::Len => self.call_len(args),
             BuiltinFunction::First => self.call_first(args),
@@ -33,128 +34,99 @@ impl BuiltinFunction {
         }
     }
 
-    fn call_len(&self, args: Vec<Object>) -> Object {
+    fn call_len(&self, args: Vec<Object>) -> Result<Object> {
         if args.len() != 1 {
-            {
-                println!(
-                    "Builtin function `len` expects 1 arg, found {}.",
-                    args.len()
-                );
-                panic!()
-            }
+            bail!(
+                "Builtin function `len` expects 1 arg, found {}.",
+                args.len()
+            );
         }
-        match args.first() {
+        Ok(match args.first() {
             Some(Object::String(string)) => Object::Int(string.len().try_into().unwrap()),
             Some(Object::Array(content)) => Object::Int(content.len().try_into().unwrap()),
             Some(Object::Hash(hashmap)) => Object::Int(hashmap.len().try_into().unwrap()),
-            Some(o) => {
-                println!(
-                    "Invalid argument for builtin function `len`, expected string or array, found {o}"
-                );
-                panic!();
-            }
+            Some(o) => bail!(
+                "Invalid argument for builtin function `len`, expected string or array, found {o}"
+            ),
             None => unreachable!(),
-        }
+        })
     }
 
-    fn call_first(&self, args: Vec<Object>) -> Object {
+    fn call_first(&self, args: Vec<Object>) -> Result<Object> {
         if args.len() != 1 {
-            {
-                println!(
-                    "Builtin function `first` expects 1 arg, found {}.",
-                    args.len()
-                );
-                panic!()
-            }
+            bail!(
+                "Builtin function `first` expects 1 arg, found {}.",
+                args.len()
+            );
         }
-        match args.first() {
-            Some(Object::String(string)) if string.is_empty() => Object::Null,
-            Some(Object::String(string)) => Object::String(string.chars().next().unwrap().into()),
-            Some(Object::Array(content)) if content.is_empty() => Object::Null,
-            Some(Object::Array(content)) => content.first().unwrap().to_owned(),
-            Some(o) => {
-                println!(
-                    "Invalid argument for builtin function `first`, expected string or array, found {o}"
-                );
-                panic!();
-            }
-            None => unreachable!(),
-        }
+        let arg = args.first().unwrap();
+        Ok(match arg {
+            Object::String(string) if string.is_empty() => Object::Null,
+            Object::String(string) => Object::String(string.chars().next().unwrap().into()),
+            Object::Array(content) if content.is_empty() => Object::Null,
+            Object::Array(content) => content.first().unwrap().to_owned(),
+            o => bail!(
+                "Invalid argument for builtin function `first`, expected string or array, found {o}"
+            ),
+        })
     }
 
-    fn call_last(&self, args: Vec<Object>) -> Object {
+    fn call_last(&self, args: Vec<Object>) -> Result<Object> {
         if args.len() != 1 {
-            {
-                println!(
-                    "Builtin function `last` expects 1 arg, found {}.",
-                    args.len()
-                );
-                panic!()
-            }
+            bail!(
+                "Builtin function `last` expects 1 arg, found {}.",
+                args.len()
+            );
         }
-        match args.first() {
-            Some(Object::String(string)) if string.is_empty() => Object::Null,
-            Some(Object::String(string)) => Object::String(string.chars().last().unwrap().into()),
-            Some(Object::Array(content)) if content.is_empty() => Object::Null,
-            Some(Object::Array(content)) => content.last().unwrap().to_owned(),
-            Some(o) => {
-                println!(
-                    "Invalid argument for builtin function `last`, expected string or array, found {o}"
-                );
-                panic!();
-            }
-            None => unreachable!(),
-        }
+        let arg = args.first().unwrap();
+        Ok(match arg {
+            Object::String(string) if string.is_empty() => Object::Null,
+            Object::String(string) => Object::String(string.chars().last().unwrap().into()),
+            Object::Array(content) if content.is_empty() => Object::Null,
+            Object::Array(content) => content.last().unwrap().to_owned(),
+            o => bail!(
+                "Invalid argument for builtin function `last`, expected string or array, found {o}"
+            ),
+        })
     }
 
-    fn call_rest(&self, args: Vec<Object>) -> Object {
+    fn call_rest(&self, args: Vec<Object>) -> Result<Object> {
         if args.len() != 1 {
-            {
-                println!(
-                    "Builtin function `rest` expects 1 arg, found {}.",
-                    args.len()
-                );
-                panic!()
-            }
+            bail!(
+                "Builtin function `rest` expects 1 arg, found {}.",
+                args.len()
+            );
         }
-        match args.first() {
-            Some(Object::String(string)) if string.is_empty() => Object::Null,
-            Some(Object::String(string)) if string.len() == 1 => Object::String("".into()),
-            Some(Object::String(string)) => Object::String(string[1..].into()),
-            Some(Object::Array(content)) if content.is_empty() => Object::Null,
-            Some(Object::Array(content)) if content.len() == 1 => Object::Array(vec![]),
-            Some(Object::Array(content)) => Object::Array(content[1..].into()),
-            Some(o) => {
-                println!(
-                    "Invalid argument for builtin function `rest`, expected string or array, found {o}"
-                );
-                panic!();
-            }
-            None => unreachable!(),
-        }
+        let arg = args.first().unwrap();
+
+        Ok(match arg {
+            Object::String(string) if string.is_empty() => Object::Null,
+            Object::String(string) if string.len() == 1 => Object::String("".into()),
+            Object::String(string) => Object::String(string[1..].into()),
+            Object::Array(content) if content.is_empty() => Object::Null,
+            Object::Array(content) if content.len() == 1 => Object::Array(vec![]),
+            Object::Array(content) => Object::Array(content[1..].into()),
+            o => bail!(
+                "Invalid argument for builtin function `rest`, expected string or array, found {o}"
+            ),
+        })
     }
 
-    fn call_push(&self, args: Vec<Object>) -> Object {
+    fn call_push(&self, args: Vec<Object>) -> Result<Object> {
         if args.len() < 2 {
-            {
-                println!(
-                    "Builtin function `push` expects 2 args, found {}.",
-                    args.len()
-                );
-                panic!()
-            }
+            bail!(
+                "Builtin function `push` expects 2 args, found {}.",
+                args.len()
+            );
         }
         let (arg1, arg2) = (&args[0], &args[1]);
 
-        match arg1 {
+        Ok(match arg1 {
             Object::String(string1) => match arg2 {
                 Object::String(string2) => Object::String(format!("{string1}{string2}")),
-                _ => {
-                    println!(
-                        "Invalid second argument for builtin function `push`, expected string or array, found {arg2}"
-                    );
-                    panic!();
-                }
+                _ => bail!(
+                    "Invalid second argument for builtin function `push`, expected string or array, found {arg2}"
+                ),
             },
             Object::Array(content) => {
                 let mut new_content = content.clone();
@@ -165,43 +137,35 @@ impl BuiltinFunction {
                 let mut new_content = content1.clone();
                 match arg2 {
                     Object::Array(content2) if content2.len() == 2 => {
-                        new_content.insert(match content2[0].clone() {
-                            Object::Bool(c) => HashMapKey::Bool(c),
-                            Object::Int(c) => HashMapKey::Int(c),
-                            Object::String(c) => HashMapKey::String(c),
-                            _ => {
-                                panic!(
+                        new_content.insert(
+                            match content2[0].clone() {
+                                Object::Bool(c) => HashMapKey::Bool(c),
+                                Object::Int(c) => HashMapKey::Int(c),
+                                Object::String(c) => HashMapKey::String(c),
+                                _ => bail!(
                                     "Invalid object type for an hash key, must be int, str or bool!"
-                                )
-                            }
-                        }, content2[1].clone());
-                    }
-                    Object::Array(_) => {
-                        println!(
-                            "Invalid second argument for builtin function `push`, expected array with 2 elements"
+                                ),
+                            },
+                            content2[1].clone(),
                         );
-                        panic!()
                     }
+                    Object::Array(_) => bail!(
+                        "Invalid second argument for builtin function `push`, expected array with 2 elements"
+                    ),
                     Object::Hash(content2) => {
                         for (k, v) in content2 {
                             new_content.insert(k.clone(), v.clone());
                         }
                     }
-                    _ => {
-                        println!(
-                            "Invalid second argument for builtin function `push`, expected array with 2 elements or another hashmap"
-                        );
-                        panic!()
-                    }
+                    _ => bail!(
+                        "Invalid second argument for builtin function `push`, expected array with 2 elements or another hashmap"
+                    ),
                 }
                 Object::Hash(new_content)
             }
-            o => {
-                println!(
-                    "Invalid first argument for builtin function `push`, expected string or array, found {o}"
-                );
-                panic!();
-            }
-        }
+            o => bail!(
+                "Invalid first argument for builtin function `push`, expected string or array, found {o}"
+            ),
+        })
     }
 }

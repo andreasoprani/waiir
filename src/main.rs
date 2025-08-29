@@ -10,6 +10,9 @@ fn main() {
     loop {
         let mut buf = String::new();
         stdin().read_line(&mut buf).unwrap();
-        println!("{}", eval_with_env(buf.as_str(), Rc::clone(&env)));
+        match eval_with_env(buf.as_str(), Rc::clone(&env)) {
+            Ok(obj) => println!("{obj}"),
+            Err(err) => println!("{err}"),
+        }
     }
 }

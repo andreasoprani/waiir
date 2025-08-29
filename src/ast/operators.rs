@@ -1,4 +1,7 @@
+use anyhow;
+
 use crate::Token;
+use std::fmt;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum PrefixOperator {
@@ -6,12 +9,23 @@ pub enum PrefixOperator {
     Neg,
 }
 
-impl From<&Token> for PrefixOperator {
-    fn from(token: &Token) -> Self {
-        match token {
+impl TryFrom<&Token> for PrefixOperator {
+    type Error = anyhow::Error;
+
+    fn try_from(token: &Token) -> anyhow::Result<Self> {
+        Ok(match token {
             Token::Bang => Self::Not,
             Token::Minus => Self::Neg,
-            _ => panic!("Invalid current token as a prefix operator"),
+            _ => anyhow::bail!("Invalid token {token} as a prefix operator"),
+        })
+    }
+}
+
+impl fmt::Display for PrefixOperator {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            PrefixOperator::Not => write!(f, "`!`"),
+            PrefixOperator::Neg => write!(f, "`-`"),
         }
     }
 }
@@ -29,9 +43,11 @@ pub enum InfixOperator {
     Index,
 }
 
-impl From<&Token> for InfixOperator {
-    fn from(token: &Token) -> Self {
-        match token {
+impl TryFrom<&Token> for InfixOperator {
+    type Error = anyhow::Error;
+
+    fn try_from(token: &Token) -> anyhow::Result<Self> {
+        Ok(match token {
             Token::Plus => Self::Add,
             Token::Minus => Self::Sub,
             Token::Asterisk => Self::Mul,
@@ -41,7 +57,23 @@ impl From<&Token> for InfixOperator {
             Token::Gt => Self::Gt,
             Token::Lt => Self::Lt,
             Token::LBracket => Self::Index,
-            _ => panic!("Invalid current token as a infix operator"),
+            _ => anyhow::bail!("Invalid token {token} as a infix operator"),
+        })
+    }
+}
+
+impl fmt::Display for InfixOperator {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            InfixOperator::Add => write!(f, "`+`"),
+            InfixOperator::Sub => write!(f, "`-`"),
+            InfixOperator::Mul => write!(f, "`*`"),
+            InfixOperator::Div => write!(f, "`/`"),
+            InfixOperator::Eq => write!(f, "`==`"),
+            InfixOperator::NotEq => write!(f, "`!=`"),
+            InfixOperator::Gt => write!(f, "`>`"),
+            InfixOperator::Lt => write!(f, "`<`"),
+            InfixOperator::Index => write!(f, "`[...]`"),
         }
     }
 }

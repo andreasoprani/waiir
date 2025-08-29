@@ -12,7 +12,7 @@ fn main() {
         let mut line_lexer = Lexer::init(buf.as_str());
         loop {
             let tok = line_lexer.next_token();
-            println!("{:?}", tok);
+            println!("{tok}");
             if tok == Token::Eof {
                 break;
             }
